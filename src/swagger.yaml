@@ -23,13 +23,13 @@ info:
     - `GET /api/users` - List all system users.
     - `PATCH /api/users/{id}/status` - Enable or disable an existing user.
 
-
+    **NOTE Backend is Deployed on render therefore it may take 50 sec to start**  
     
   version: '1.0.0'
 
 servers:
-  - url: http://localhost:3000
-    description: Local development server
+  - url: /
+    description: Current environment
 
 tags:
   - name: Health

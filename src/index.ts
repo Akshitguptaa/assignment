@@ -2,6 +2,7 @@ import express from 'express';
 import swaggerUi from 'swagger-ui-express';
 import YAML from 'yamljs';
 import path from 'path';
+import cors from 'cors';
 import { prisma } from './lib/prisma';
 import rateLimit from 'express-rate-limit';
 
@@ -17,11 +18,18 @@ const limiter = rateLimit({
   message: { error: 'Too many requests, please try again later.' },
 });
 
+app.use(cors());
 app.use(express.json());
 app.use(limiter);
 
 // Swagger docs
-const swaggerDocument = YAML.load(path.join(__dirname, 'swagger.yaml')) as object;
+const swaggerDocument = YAML.load(path.join(__dirname, 'swagger.yaml')) as any;
+swaggerDocument.servers = [
+  { 
+    url: process.env.RENDER_EXTERNAL_URL || '/', 
+    description: process.env.RENDER_EXTERNAL_URL ? 'Production environment' : 'Current environment' 
+  }
+];
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // Routes
