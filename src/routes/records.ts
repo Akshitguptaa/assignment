@@ -10,19 +10,21 @@ router.use(authenticate);
 
 // List records with filtering — ANALYST + ADMIN
 router.get('/', requireRole('ANALYST', 'ADMIN'), validate(recordFilterSchema, 'query'), async (req, res) => {
-  const { type, category, from, to, page, limit } = req.query as {
+  const { type, category, from, to, page, limit, search } = req.query as {
     type?: 'INCOME' | 'EXPENSE';
     category?: string;
     from?: string;
     to?: string;
     page: string;
     limit: string;
+    search?: string;
   };
 
   const pageNum = parseInt(page ?? '1');
   const limitNum = parseInt(limit ?? '20');
 
   const where = {
+    deletedAt: null,
     ...(type ? { type } : {}),
     ...(category ? { category: { contains: category, mode: 'insensitive' as const } } : {}),
     ...(from || to
@@ -31,6 +33,14 @@ router.get('/', requireRole('ANALYST', 'ADMIN'), validate(recordFilterSchema, 'q
             ...(from ? { gte: new Date(from) } : {}),
             ...(to ? { lte: new Date(to) } : {}),
           },
+        }
+      : {}),
+    ...(search
+      ? {
+          OR: [
+            { category: { contains: search, mode: 'insensitive' as const } },
+            { notes: { contains: search, mode: 'insensitive' as const } },
+          ],
         }
       : {}),
   };
@@ -56,7 +66,7 @@ router.get('/', requireRole('ANALYST', 'ADMIN'), validate(recordFilterSchema, 'q
 router.get('/:id', requireRole('ANALYST', 'ADMIN'), async (req, res) => {
   const id = req.params['id'] as string;
   const record = await prisma.financialRecord.findUnique({
-    where: { id },
+    where: { id, deletedAt: null },
     include: { user: { select: { id: true, name: true, email: true } } },
   });
   if (!record) {
@@ -99,7 +109,7 @@ router.post('/', requireRole('ADMIN'), validate(createRecordSchema), async (req,
 // Update record — ADMIN only
 router.put('/:id', requireRole('ADMIN'), validate(updateRecordSchema), async (req, res) => {
   const id = req.params['id'] as string;
-  const existing = await prisma.financialRecord.findUnique({ where: { id } });
+  const existing = await prisma.financialRecord.findUnique({ where: { id, deletedAt: null } });
   if (!existing) {
     res.status(404).json({ error: 'Record not found' });
     return;
@@ -129,13 +139,16 @@ router.put('/:id', requireRole('ADMIN'), validate(updateRecordSchema), async (re
 // Delete record — ADMIN only
 router.delete('/:id', requireRole('ADMIN'), async (req, res) => {
   const id = req.params['id'] as string;
-  const existing = await prisma.financialRecord.findUnique({ where: { id } });
+  const existing = await prisma.financialRecord.findUnique({ where: { id, deletedAt: null } });
   if (!existing) {
     res.status(404).json({ error: 'Record not found' });
     return;
   }
 
-  await prisma.financialRecord.delete({ where: { id } });
+  await prisma.financialRecord.update({ 
+    where: { id }, 
+    data: { deletedAt: new Date() } 
+  });
   res.status(204).send();
 });
 

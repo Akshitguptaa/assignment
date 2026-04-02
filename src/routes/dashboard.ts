@@ -9,19 +9,21 @@ router.use(authenticate);
 router.get('/', async (_req, res) => {
   const [incomeAgg, expenseAgg, categoryTotals, recentActivity] = await Promise.all([
     prisma.financialRecord.aggregate({
-      where: { type: 'INCOME' },
+      where: { type: 'INCOME', deletedAt: null },
       _sum: { amount: true },
     }),
     prisma.financialRecord.aggregate({
-      where: { type: 'EXPENSE' },
+      where: { type: 'EXPENSE', deletedAt: null },
       _sum: { amount: true },
     }),
     prisma.financialRecord.groupBy({
       by: ['category', 'type'],
+      where: { deletedAt: null },
       _sum: { amount: true },
       orderBy: { _sum: { amount: 'desc' } },
     }),
     prisma.financialRecord.findMany({
+      where: { deletedAt: null },
       orderBy: { createdAt: 'desc' },
       take: 5,
       include: { user: { select: { id: true, name: true } } },

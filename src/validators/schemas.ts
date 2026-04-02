@@ -24,6 +24,7 @@ export const updateRecordSchema = createRecordSchema.partial().omit({ userId: tr
 export const recordFilterSchema = z.object({
   type: z.enum(['INCOME', 'EXPENSE']).optional(),
   category: z.string().optional(),
+  search: z.string().optional(),
   from: z.string().datetime().optional(),
   to: z.string().datetime().optional(),
   page: z.coerce.number().int().positive().default(1),
