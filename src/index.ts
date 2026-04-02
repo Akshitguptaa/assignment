@@ -3,6 +3,7 @@ import swaggerUi from 'swagger-ui-express';
 import YAML from 'yamljs';
 import path from 'path';
 import { prisma } from './lib/prisma';
+import rateLimit from 'express-rate-limit';
 
 import usersRouter from './routes/users';
 import recordsRouter from './routes/records';
@@ -10,7 +11,14 @@ import dashboardRouter from './routes/dashboard';
 
 const app = express();
 
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, 
+  max: 100, 
+  message: { error: 'Too many requests, please try again later.' },
+});
+
 app.use(express.json());
+app.use(limiter);
 
 // Swagger docs
 const swaggerDocument = YAML.load(path.join(__dirname, 'swagger.yaml')) as object;
