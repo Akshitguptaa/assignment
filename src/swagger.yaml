@@ -1,0 +1,384 @@
+openapi: '3.0.3'
+info:
+  title: Finance Data Processing API
+  description: |
+    A role-based REST API for managing financial records and users.
+
+    ## Workflow
+    Test the API by changing your `X-User-Role` header. Below is the step-by-step testing flow for each role:
+
+    **1. VIEWER (Header: `X-User-Role: VIEWER`)**
+    - `GET /api/dashboard` - View the financial summary and recent activity.
+
+    **2. ANALYST (Header: `X-User-Role: ANALYST`)**
+    - `GET /api/dashboard` - View the financial summary.
+    - `GET /api/records` - List out all financial records natively.
+    - `GET /api/records/{id}` - View the specific details of a single record.
+
+    **3. ADMIN (Header: `X-User-Role: ADMIN`)**
+    - `POST /api/records` - Create new financial records.
+    - `PUT /api/records/{id}` - Edit an existing record.
+    - `DELETE /api/records/{id}` - Delete a record.
+    - `POST /api/users` - Create new users.
+    - `GET /api/users` - List all system users.
+    - `PATCH /api/users/{id}/status` - Enable or disable an existing user.
+
+
+    
+  version: '1.0.0'
+
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+
+tags:
+  - name: Health
+    description: Server health check
+  - name: Dashboard
+    description: Summary analytics (all roles)
+  - name: Records
+    description: Financial record management
+  - name: Users
+    description: User and role management
+
+components:
+  securitySchemes:
+    RoleHeader:
+      type: apiKey
+      in: header
+      name: X-User-Role
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [VIEWER, ANALYST, ADMIN]
+        active:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    FinancialRecord:
+      type: object
+      properties:
+        id:
+          type: string
+        amount:
+          type: number
+        type:
+          type: string
+          enum: [INCOME, EXPENSE]
+        category:
+          type: string
+        date:
+          type: string
+          format: date-time
+        notes:
+          type: string
+        userId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+
+    ValidationError:
+      type: object
+      properties:
+        error:
+          type: string
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+
+security:
+  - RoleHeader: []
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      security: []
+      responses:
+        '200':
+          description: Server is running
+
+  /api/dashboard:
+    get:
+      tags: [Dashboard]
+      summary: Get financial summary
+      description: Returns total income, expenses, net balance, category breakdown, and last 5 records. Accessible by VIEWER, ANALYST, ADMIN.
+      responses:
+        '200':
+          description: Dashboard summary
+          content:
+            application/json:
+              example:
+                summary:
+                  totalIncome: 50000
+                  totalExpenses: 20000
+                  netBalance: 30000
+                categoryBreakdown: []
+                recentActivity: []
+        '401':
+          description: Missing or invalid role header
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/records:
+    get:
+      tags: [Records]
+      summary: List financial records
+      description: Requires ANALYST or ADMIN role.
+      parameters:
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum: [INCOME, EXPENSE]
+        - in: query
+          name: category
+          schema:
+            type: string
+        - in: query
+          name: from
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: to
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Paginated list of records
+        '403':
+          description: Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags: [Records]
+      summary: Create a financial record
+      description: Requires ADMIN role.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount, type, category, date, userId]
+              properties:
+                amount:
+                  type: number
+                  minimum: 0.01
+                type:
+                  type: string
+                  enum: [INCOME, EXPENSE]
+                category:
+                  type: string
+                date:
+                  type: string
+                  format: date-time
+                notes:
+                  type: string
+                userId:
+                  type: string
+      responses:
+        '201':
+          description: Record created
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '403':
+          description: Insufficient permissions
+
+  /api/records/{id}:
+    get:
+      tags: [Records]
+      summary: Get a single record
+      description: Requires ANALYST or ADMIN role.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Financial record
+        '404':
+          description: Not found
+
+    put:
+      tags: [Records]
+      summary: Update a record
+      description: Requires ADMIN role.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                amount:
+                  type: number
+                type:
+                  type: string
+                  enum: [INCOME, EXPENSE]
+                category:
+                  type: string
+                date:
+                  type: string
+                  format: date-time
+                notes:
+                  type: string
+      responses:
+        '200':
+          description: Updated record
+        '404':
+          description: Not found
+
+    delete:
+      tags: [Records]
+      summary: Delete a record
+      description: Requires ADMIN role.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          description: Not found
+
+  /api/users:
+    get:
+      tags: [Users]
+      summary: List all users
+      description: Requires ADMIN role.
+      responses:
+        '200':
+          description: List of users
+
+    post:
+      tags: [Users]
+      summary: Create a user
+      description: Requires ADMIN role.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email]
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                role:
+                  type: string
+                  enum: [VIEWER, ANALYST, ADMIN]
+      responses:
+        '201':
+          description: Created user
+        '400':
+          description: Validation error
+        '409':
+          description: Email already in use
+
+  /api/users/{id}:
+    get:
+      tags: [Users]
+      summary: Get a user
+      description: Requires ADMIN role.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User object
+        '404':
+          description: Not found
+
+  /api/users/{id}/status:
+    patch:
+      tags: [Users]
+      summary: Toggle user active status
+      description: Requires ADMIN role.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [active]
+              properties:
+                active:
+                  type: boolean
+      responses:
+        '200':
+          description: Updated user
+        '404':
+          description: Not found
